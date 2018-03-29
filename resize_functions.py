@@ -4,22 +4,93 @@ import matplotlib.pyplot as plt
 import os
 import cv2
 from skimage import transform
+from multiprocessing import Process, Queue
 
+def load_img(q,count, image):
+    
+#    print(image)
+    img = cv2.imread('../train/'+ image)
+    img = transform.resize(img, output_shape=(600,1000), mode='symmetric')
+    q.put(img)
+    
 
-fname = pd.read_csv('train.csv')
+def batch_generator(X,y, batch_size=64, shuffle=False, random_seed=None, stop=None):
 
+    idx = np.arange(y.shape[0])
+    
+    if shuffle:
+        rng = np.random.RandomState(random_seed)
+        rng.shuffle(idx)
+        X = X[idx]
+        y = y[idx]
+    
+    end = X.shape[0]
+    if stop != None:
+        end = stop
+    
+#    cpus = multiprocessing.cpu_count()
+#    workers = multiprocessing.Pool(processes=cpus)
+#    
 
-fig = plt.figure(figsize=(15,12))
+    
+    for i in range(0,end, batch_size):
 
-mode = {'constant', 'edge', 'symmetric', 'reflect', 'wrap'}
-n = 0
-for m in mode:
-    for image in [i for i in fname.Image[:5]]:   
+        yy = y[i: i+batch_size]
+        XX = np.zeros(shape=(len(yy), 600,1000,3))
         
-        fig.add_subplot(5,5,n+1)
-        frame = cv2.imread('./train/'+image)    
-        img_shape = frame.shape
-        frame = transform.resize(frame, output_shape=(600,1000), mode=m)    
-        plt.imshow(frame)
-        plt.title(img_shape)
-        n += 1
+        TASKLIST = [[count,image] for count,image in enumerate(X[i:i+batch_size])]
+        
+        for count, iamge in TASKLIST:
+            
+            q = Queue()
+            p = Process(target=load_img, args=(q,count, iamge))
+            p.start()
+            XX[count] = q.get()
+        p.join()
+            
+        
+#        workers.map(load_img, TASKLIST)
+#        for count,image in enumerate(X[i:i+batch_size]):
+        
+        
+#        load_img([count, image])
+#            img = cv2.imread('../train/'+ image)
+#            img = transform.resize(img, output_shape=(600,1000), mode='symmetric')
+#            XX[count] = img
+        yield (XX, yy)
+
+
+def get_input():
+        ## Input 
+    fname = pd.read_csv('../train.csv')
+    yn = fname.Id.unique()
+    yn = pd.DataFrame(yn, columns=('Id',))
+    yn['digits'] = yn.index
+    
+    new = pd.merge(fname,yn, on='Id')
+    X = np.array(new.Image)
+    y = np.array(new.digits)  
+    return X,y
+
+
+if __name__=='__main__':
+    
+    fname = pd.read_csv('../train.csv')
+    yn = fname.Id.unique()
+    yn = pd.DataFrame(yn, columns=('Id',))
+    yn['digits'] = yn.index
+    
+    new = pd.merge(fname,yn, on='Id')
+    X = np.array(new.Image)
+    y = np.array(new.digits)
+    
+    batch_gen = batch_generator(X,y,batch_size=10, shuffle=True, stop=55)
+    
+#    X = np.zeros(shape=(10,600,1000,3))
+    for n,i in enumerate(batch_gen):
+        x_batch,y_batch = i
+#        print(y)
+        cv2.imshow('img', x_batch[-1])
+        key = cv2.waitKey(0)
+        if key==113:
+            break
