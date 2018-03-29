@@ -6,12 +6,12 @@ import cv2
 from skimage import transform
 from multiprocessing import Process, Queue
 
-def load_img(q,count, image):
+def load_img(count, image):
     
 #    print(image)
     img = cv2.imread('../train/'+ image)
     img = transform.resize(img, output_shape=(600,1000), mode='symmetric')
-    q.put(img)
+#    q.put(img)
     
 
 def batch_generator(X,y, batch_size=64, shuffle=False, random_seed=None, stop=None):
@@ -28,35 +28,17 @@ def batch_generator(X,y, batch_size=64, shuffle=False, random_seed=None, stop=No
     if stop != None:
         end = stop
     
-#    cpus = multiprocessing.cpu_count()
-#    workers = multiprocessing.Pool(processes=cpus)
-#    
-
-    
     for i in range(0,end, batch_size):
 
         yy = y[i: i+batch_size]
         XX = np.zeros(shape=(len(yy), 600,1000,3))
-        
-        TASKLIST = [[count,image] for count,image in enumerate(X[i:i+batch_size])]
-        
-        for count, iamge in TASKLIST:
-            
-            q = Queue()
-            p = Process(target=load_img, args=(q,count, iamge))
-            p.start()
-            XX[count] = q.get()
-        p.join()
-            
-        
-#        workers.map(load_img, TASKLIST)
-#        for count,image in enumerate(X[i:i+batch_size]):
-        
-        
-#        load_img([count, image])
-#            img = cv2.imread('../train/'+ image)
-#            img = transform.resize(img, output_shape=(600,1000), mode='symmetric')
-#            XX[count] = img
+
+        for count,image in enumerate(X[i:i+batch_size]):
+
+#            load_img(count, image)
+            img = cv2.imread('../train/'+ image)
+            img = transform.resize(img, output_shape=(600,1000), mode='symmetric')
+            XX[count] = img
         yield (XX, yy)
 
 
